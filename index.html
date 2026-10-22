@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GLOBAL_CHAT</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+tailwind.config = { theme: { extend: {
+  fontFamily: { head: ['"Archivo Black"', 'Impact', 'sans-serif'], body: ['"Space Grotesk"', 'system-ui', 'sans-serif'] },
+  colors: { crimson: '#FF0033', ink: '#0A0A0A', paper: '#FAFAFA' } } } };
+</script>
+<style>
+:root{--page:#FF0033;--bg:#FAFAFA;--dots:rgba(10,10,10,.2);--sh:#0A0A0A;--wave-off:rgba(10,10,10,.22);
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--page:#121212;--bg:#121212;--dots:rgba(250,250,250,.16);--sh:#FF0033}}
+:root[data-theme="dark"]{--page:#121212;--bg:#121212;--dots:rgba(250,250,250,.16);--sh:#FF0033}
+html{height:100%}
+body{height:100%;margin:0;background:var(--page);font-family:'Space Grotesk',system-ui,sans-serif;color:#0A0A0A}
+.nb{border:3px solid #0A0A0A;box-shadow:4px 4px 0 var(--sh)}
+.btn{border:3px solid #0A0A0A;box-shadow:3px 3px 0 #0A0A0A;font-weight:700;cursor:pointer;transition:transform .08s,box-shadow .08s;display:inline-flex;align-items:center;justify-content:center;gap:.4rem}
+.btn:hover{transform:translate(-1px,-1px);box-shadow:4px 4px 0 #0A0A0A}
+.btn:active{transform:translate(3px,3px);box-shadow:0 0 0 #0A0A0A}
+.btn:disabled{opacity:.5;pointer-events:none}
+.fld{width:100%;height:3rem;padding:0 .75rem;background:#fff;color:#0A0A0A;font-weight:700;border:3px solid #0A0A0A;box-shadow:inset 3px 3px 0 rgba(10,10,10,.12)}
+.fld::placeholder{color:rgba(10,10,10,.5);font-weight:500}
+:focus-visible{outline:3px solid #FF0033;outline-offset:2px}
+.btn:focus-visible{outline-color:#0A0A0A}
+#feed{background-color:var(--bg);background-image:radial-gradient(var(--dots) 1.5px,transparent 1.5px);background-size:22px 22px}
+.dot-live{animation:blink 1s steps(2,jump-none) infinite}
+@keyframes blink{50%{opacity:.15}}
+.rec{animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{50%{transform:scale(1.08)}}
+.in-msg{animation:pop .18s ease-out}
+@keyframes pop{from{transform:translateY(8px);opacity:0}}
+.vn .wv span{flex:1;min-width:2px;background:var(--b0);transition:background .1s}
+.vn .wv span.on{background:var(--b1)}
+.zoom{transition:transform .18s}
+.zoomwrap:hover .zoom{transform:scale(1.08)}
+.zoomwrap{overflow:hidden;cursor:zoom-in}
+.vid.playing .pbtn{opacity:0}.vid.playing:hover .pbtn{opacity:1}
+@media (prefers-reduced-motion:reduce){.dot-live,.rec,.in-msg{animation:none}}
+</style>
+</head>
+<body>
+
+<!-- Login / Daftar -->
+<div id="auth" class="fixed inset-0 z-40 overflow-y-auto bg-[var(--page)] p-4 grid place-items-center">
+  <div class="nb bg-paper text-ink w-full max-w-sm p-5 shadow-[8px_8px_0_#0A0A0A]">
+    <h1 class="font-head text-2xl bg-crimson text-white inline-block px-3 py-2 border-[3px] border-ink shadow-[3px_3px_0_#0A0A0A] mb-4">GLOBAL_CHAT</h1>
+    <div id="setupWarn" class="hidden font-bold text-sm leading-snug">
+      Backend belum dihubungkan. Buka <code class="bg-ink text-white px-1">index.html</code>, isi <code class="bg-ink text-white px-1">SUPABASE_URL</code> dan <code class="bg-ink text-white px-1">SUPABASE_KEY</code> di bagian atas script, lalu simpan ulang.
+    </div>
+    <form id="authForm" class="space-y-3">
+      <div class="grid grid-cols-2 gap-2">
+        <button type="button" data-mode="masuk" class="tab btn h-11">MASUK</button>
+        <button type="button" data-mode="daftar" class="tab btn h-11">DAFTAR</button>
+      </div>
+      <input id="aName" class="fld" placeholder="Nama pengguna" maxlength="24" autocomplete="nickname">
+      <input id="aEmail" class="fld" type="email" placeholder="Email" required autocomplete="email">
+      <input id="aPass" class="fld" type="password" placeholder="Kata sandi (min. 6 karakter)" minlength="6" required autocomplete="current-password">
+      <p id="aErr" class="hidden font-bold text-sm text-white bg-crimson border-[3px] border-ink p-2"></p>
+      <button id="aGo" type="submit" class="btn w-full h-12 bg-crimson text-white font-head text-lg">MASUK</button>
+    </form>
+  </div>
+</div>
+
+<!-- Edit profil -->
+<div id="prof" class="hidden fixed inset-0 z-40 bg-ink/80 overflow-y-auto p-4 place-items-center">
+  <form id="profForm" class="nb bg-paper text-ink w-full max-w-sm p-5 shadow-[8px_8px_0_#FF0033] space-y-3">
+    <h2 class="font-head text-xl">EDIT PROFIL</h2>
+    <div class="flex items-center gap-3">
+      <div id="pAv" class="w-20 h-20 grid place-items-center font-head text-3xl border-[3px] border-ink bg-ink text-white overflow-hidden shrink-0"></div>
+      <label class="btn bg-paper px-3 py-2 text-sm">Ganti foto<input id="pFile" type="file" accept="image/*" class="hidden"></label>
+    </div>
+    <label class="block font-bold text-sm">Nama pengguna<input id="pName" class="fld mt-1" maxlength="24" minlength="2" required></label>
+    <p id="pErr" class="hidden font-bold text-sm text-white bg-crimson border-[3px] border-ink p-2"></p>
+    <div class="grid grid-cols-2 gap-2">
+      <button type="button" id="pClose" class="btn h-11 bg-paper">Batal</button>
+      <button type="submit" id="pSave" class="btn h-11 bg-crimson text-white">Simpan</button>
+    </div>
+    <button type="button" id="logout" class="btn w-full h-11 bg-ink text-white">Keluar akun</button>
+  </form>
+</div>
+
+<div class="h-full sm:py-5 sm:px-4">
+<main class="mx-auto h-full max-w-3xl flex flex-col bg-paper sm:border-4 border-ink sm:shadow-[8px_8px_0_var(--sh)] overflow-hidden">
+  <header class="bg-ink text-paper px-3 sm:px-5 py-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-b-4 border-ink">
+    <h1 class="font-head text-xl sm:text-2xl leading-none bg-crimson text-white px-3 py-2 border-2 border-paper shadow-[3px_3px_0_#FAFAFA]">GLOBAL_CHAT</h1>
+    <div class="flex items-center gap-2 bg-paper text-ink border-2 border-ink px-2 py-1 font-bold text-sm">
+      <span class="dot-live w-3 h-3 rounded-full bg-[#00D26A] border-2 border-ink"></span>LIVE</div>
+    <div class="text-sm font-bold"><span id="online" class="text-crimson bg-paper px-1.5 py-0.5 border-2 border-ink tabular-nums">0</span> online</div>
+    <div class="ml-auto flex items-center gap-2">
+      <div id="conn" class="hidden md:block text-xs font-bold border-2 border-paper px-2 py-1">MENYAMBUNG...</div>
+      <button id="meBtn" class="btn bg-paper text-ink h-10 pr-3 gap-2 max-w-[11rem]" aria-label="Edit profil">
+        <span id="meAv" class="w-9 h-full grid place-items-center bg-ink text-white font-head overflow-hidden border-r-[3px] border-ink"></span>
+        <span id="meName" class="hidden sm:block truncate text-sm"></span>
+      </button>
+      <button id="theme" class="btn bg-paper text-ink w-10 h-10" aria-label="Ganti mode terang atau gelap">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <section id="feed" class="flex-1 overflow-y-auto px-3 sm:px-5 py-5 space-y-5" aria-live="polite" aria-label="Percakapan publik">
+    <p id="empty" class="hidden text-center font-bold"><span class="bg-paper text-ink border-[3px] border-ink px-3 py-2 inline-block shadow-[3px_3px_0_var(--sh)]">Belum ada pesan. Jadilah yang pertama menyapa.</span></p>
+  </section>
+
+  <div id="recbar" class="hidden bg-crimson text-white border-t-4 border-ink px-3 sm:px-5 py-2 items-center gap-3 font-bold">
+    <span class="rec w-4 h-4 bg-white border-2 border-ink rounded-full"></span>
+    <span>Merekam <span id="rect" class="tabular-nums">0:00</span></span>
+    <span class="hidden sm:inline text-sm font-medium">Tekan mikrofon lagi untuk mengirim</span>
+    <button id="reccancel" class="btn ml-auto bg-paper text-ink px-3 py-1 text-sm">Batal</button>
+  </div>
+  <div id="pend" class="hidden bg-paper text-ink border-t-4 border-ink px-3 sm:px-5 py-2 items-center gap-3"></div>
+
+  <form id="form" class="bg-paper border-t-4 border-ink p-3 sm:px-5 flex flex-wrap sm:flex-nowrap gap-2 items-stretch">
+    <input id="file" type="file" accept="image/*,video/*" class="hidden">
+    <button type="button" id="attach" class="btn bg-paper text-ink w-12 h-12" aria-label="Lampirkan foto atau video">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14"/><circle cx="9" cy="11" r="2"/><path d="M21 16l-5-5-8 8"/></svg>
+    </button>
+    <button type="button" id="mic" class="btn bg-paper text-ink w-12 h-12" aria-label="Rekam pesan suara">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v4"/></svg>
+    </button>
+    <input id="text" type="text" maxlength="1000" autocomplete="off" placeholder="Ketik pesan publik..." class="fld order-first sm:order-none basis-full sm:basis-0 grow min-w-0">
+    <button id="send" type="submit" class="btn grow sm:grow-0 bg-crimson text-white h-12 px-5 font-head text-lg">
+      KIRIM
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="#0A0A0A" stroke-width="2" stroke-linejoin="round"><path d="M3 11L21 3l-8 18-2-7z"/></svg>
+    </button>
+  </form>
+</main>
+</div>
+
+<div id="lb" class="hidden fixed inset-0 z-50 bg-ink/90 items-center justify-center p-4 cursor-zoom-out"><img id="lbimg" alt="" class="max-w-full max-h-full border-4 border-paper shadow-[8px_8px_0_#FF0033]"></div>
+<div id="toast" class="hidden fixed bottom-24 left-1/2 -translate-x-1/2 z-50 max-w-[90%] bg-ink text-white font-bold px-4 py-2 border-[3px] border-paper shadow-[4px_4px_0_#FF0033]"></div>
+
+<script>
+/* ====== ISI DUA BARIS INI (Supabase > Project Settings > API) ====== */
+const SUPABASE_URL = 'ISI_PROJECT_URL';
+const SUPABASE_KEY = 'ISI_ANON_PUBLIC_KEY';
+/* ================================================================== */
+
+const $ = s => document.querySelector(s);
+const feed = $('#feed');
+const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+const when = iso => {
+  const d = new Date(iso), t = d.toLocaleTimeString('id-ID', {hour: '2-digit', minute: '2-digit'}).replace('.', ':');
+  return d.toDateString() === new Date().toDateString() ? t : d.toLocaleDateString('id-ID', {day: '2-digit', month: '2-digit'}) + ' ' + t;
+};
+const I = {
+  play: '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4l13 8-13 8z"/></svg>',
+  pause: '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>'
+};
+let toastT;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.remove('hidden'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.add('hidden'), 3500); }
+function show(el, on, flex) { el.classList.toggle('hidden', !on); if (flex) el.classList.toggle(flex, on); }
+
+/* ---------- Auth ---------- */
+const configured = !SUPABASE_URL.startsWith('ISI_') && !SUPABASE_KEY.startsWith('ISI_');
+let sb, me = null, started = false, mode = 'masuk';
+const profiles = {}, seen = new Set();
+
+function setMode(m) {
+  mode = m;
+  document.querySelectorAll('.tab').forEach(b => {
+    const on = b.dataset.mode === m;
+    b.classList.toggle('bg-crimson', on); b.classList.toggle('text-white', on);
+    b.classList.toggle('bg-paper', !on); b.classList.toggle('text-ink', !on);
+  });
+  $('#aName').classList.toggle('hidden', m !== 'daftar');
+  $('#aGo').textContent = m === 'daftar' ? 'BUAT AKUN' : 'MASUK';
+  $('#aPass').autocomplete = m === 'daftar' ? 'new-password' : 'current-password';
+}
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => setMode(b.dataset.mode));
+setMode('masuk');
+const errMap = {'Invalid login credentials': 'Email atau kata sandi salah.', 'User already registered': 'Email ini sudah terdaftar. Silakan masuk.', 'Email not confirmed': 'Email belum dikonfirmasi. Cek kotak masuk kamu.'};
+function showErr(el, msg) { el.textContent = errMap[msg] || msg; el.classList.remove('hidden'); }
+
+$('#authForm').onsubmit = async e => {
+  e.preventDefault();
+  const err = $('#aErr'); err.classList.add('hidden');
+  const email = $('#aEmail').value.trim(), password = $('#aPass').value, username = $('#aName').value.trim();
+  if (mode === 'daftar' && username.length < 2) return showErr(err, 'Nama pengguna minimal 2 karakter.');
+  $('#aGo').disabled = true;
+  if (mode === 'daftar') {
+    const {data, error} = await sb.auth.signUp({email, password, options: {data: {username}}});
+    if (error) showErr(err, error.message);
+    else if (!data.session) showErr(err, 'Akun dibuat. Cek email kamu untuk konfirmasi, lalu masuk.');
+  } else {
+    const {error} = await sb.auth.signInWithPassword({email, password});
+    if (error) showErr(err, error.message);
+  }
+  $('#aGo').disabled = false;
+};
+
+/* ---------- Profiles ---------- */
+function avHTML(p) { return p?.avatar_url ? `<img src="${esc(p.avatar_url)}" alt="" class="w-full h-full object-cover">` : esc((p?.username || '?')[0].toUpperCase()); }
+async function loadProfiles(ids) {
+  const need = [...new Set(ids)].filter(id => !profiles[id]);
+  if (!need.length) return;
+  const {data} = await sb.from('profiles').select('*').in('id', need);
+  (data || []).forEach(p => profiles[p.id] = p);
+}
+function refreshProfile(id) {
+  const p = profiles[id];
+  document.querySelectorAll(`[data-av="${id}"]`).forEach(el => el.innerHTML = avHTML(p));
+  document.querySelectorAll(`[data-name="${id}"]`).forEach(el => el.textContent = p.username);
+  if (me && id === me.id) { $('#meAv').innerHTML = avHTML(p); $('#meName').textContent = p.username; }
+}
+async function ensureProfile(u) {
+  let {data} = await sb.from('profiles').select('*').eq('id', u.id).maybeSingle();
+  if (!data) {
+    const name = (u.user_metadata?.username || u.email.split('@')[0]).slice(0, 24).padEnd(2, '_');
+    const r = await sb.from('profiles').insert({id: u.id, username: name}).select().single();
+    data = r.data;
+  }
+  profiles[u.id] = data;
+}
+
+let avFile = null;
+$('#meBtn').onclick = () => {
+  const p = profiles[me.id]; avFile = null;
+  $('#pName').value = p.username; $('#pAv').innerHTML = avHTML(p); $('#pErr').classList.add('hidden');
+  show($('#prof'), true, 'grid');
+};
+$('#pClose').onclick = () => show($('#prof'), false, 'grid');
+$('#pFile').onchange = e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  if (!f.type.startsWith('image/') || f.size > 5e6) return showErr($('#pErr'), 'Pilih file gambar maksimal 5 MB.');
+  avFile = f; $('#pErr').classList.add('hidden');
+  $('#pAv').innerHTML = `<img src="${URL.createObjectURL(f)}" alt="" class="w-full h-full object-cover">`;
+};
+$('#profForm').onsubmit = async e => {
+  e.preventDefault();
+  $('#pSave').disabled = true;
+  try {
+    const upd = {username: $('#pName').value.trim()};
+    if (avFile) upd.avatar_url = await upload(avFile, avFile.name.split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg', 'avatar');
+    const {data, error} = await sb.from('profiles').update(upd).eq('id', me.id).select().single();
+    if (error) throw error;
+    profiles[me.id] = data; refreshProfile(me.id);
+    show($('#prof'), false, 'grid'); toast('Profil disimpan');
+  } catch (x) { showErr($('#pErr'), x.message); }
+  $('#pSave').disabled = false;
+};
+$('#logout').onclick = () => sb.auth.signOut();
+
+/* ---------- Rendering ---------- */
+const bars = (seed, n = 34) => Array.from({length: n}, (_, i) =>
+  Math.min(100, Math.max(14, Math.abs(Math.sin(i * 1.7 + seed) * 55 + Math.sin(i * .6 + seed * 2) * 35))));
+function voiceHTML(dur, seed, mine, src) {
+  const spans = bars(seed).map(h => `<span style="height:${h}%"></span>`).join('');
+  const vars = mine ? '--b0:rgba(255,255,255,.5);--b1:#0A0A0A' : '--b0:var(--wave-off);--b1:#FF0033';
+  return `<div class="vn flex items-center gap-3 w-64 sm:w-80 max-w-full" data-dur="${dur}" data-src="${esc(src)}" style="${vars}">
+    <button type="button" class="vbtn btn ${mine ? 'bg-ink' : 'bg-crimson'} text-white w-11 h-11 shrink-0" aria-label="Putar pesan suara">${I.play}</button>
+    <div class="wv flex-1 flex items-center gap-[2px] h-10 cursor-pointer" role="slider" aria-label="Posisi audio">${spans}</div>
+    <span class="vt font-bold text-sm tabular-nums w-9 text-right">${fmt(dur)}</span></div>`;
+}
+function videoHTML(src) {
+  return `<div class="vid relative aspect-video w-64 sm:w-96 max-w-full bg-ink nb overflow-hidden cursor-pointer">
+    <video src="${esc(src)}" playsinline preload="metadata" class="w-full h-full object-cover absolute inset-0"></video>
+    <button type="button" class="pbtn btn absolute inset-0 m-auto w-16 h-16 bg-crimson text-white transition-opacity" aria-label="Putar video">${I.play.replace('20', '30')}</button>
+    <div class="absolute bottom-0 inset-x-0 h-6 bg-paper border-t-[3px] border-ink flex items-center">
+      <div class="vp h-full bg-crimson border-r-[3px] border-ink" style="width:0"></div>
+      <span class="vtime absolute right-2 text-ink text-xs font-bold tabular-nums">0:00</span></div></div>`;
+}
+function addMsg(m, instant) {
+  if (seen.has(m.id)) return;
+  seen.add(m.id); $('#empty').classList.add('hidden');
+  const mine = m.user_id === me.id, p = profiles[m.user_id];
+  const near = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 160;
+  const row = document.createElement('article');
+  row.className = 'in-msg flex gap-3 items-end ' + (mine ? 'flex-row-reverse' : '');
+  let body = '';
+  if (m.kind === 'image') body += `<div class="zoomwrap nb mb-2 w-64 sm:w-80 max-w-full"><img src="${esc(m.media_url)}" loading="lazy" alt="Foto dari ${esc(p?.username)}" class="zoom block w-full"></div>`;
+  if (m.kind === 'video') body += `<div class="mb-2">${videoHTML(m.media_url)}</div>`;
+  if (m.kind === 'voice') body += `<div class="mb-1">${voiceHTML(m.duration || 1, m.id, mine, m.media_url)}</div>`;
+  if (m.content) body += `<p class="text-base font-bold leading-snug break-words">${esc(m.content)}</p>`;
+  row.innerHTML = `<div data-av="${m.user_id}" class="${mine ? 'bg-crimson text-white' : 'bg-ink text-white'} w-10 h-10 shrink-0 grid place-items-center font-head overflow-hidden border-[3px] border-ink shadow-[3px_3px_0_var(--sh)]">${avHTML(p)}</div>
+    <div class="nb ${mine ? 'bg-crimson text-white' : 'bg-paper text-ink'} p-3 max-w-[82%] sm:max-w-[70%] min-w-0">
+      <div class="flex items-baseline gap-2 mb-2 ${mine ? 'justify-end' : ''}"><span data-name="${m.user_id}" class="font-head text-sm">${esc(p?.username)}</span>
+      <span class="text-xs font-bold opacity-75 tabular-nums">${when(m.created_at)}</span></div>${body}</div>`;
+  feed.appendChild(row);
+  row.querySelectorAll('video').forEach(v => {
+    const box = v.closest('.vid');
+    v.addEventListener('play', () => box.classList.add('playing'));
+    v.addEventListener('pause', () => box.classList.remove('playing'));
+    const upd = () => { box.querySelector('.vp').style.width = (v.currentTime / (v.duration || 1) * 100) + '%'; box.querySelector('.vtime').textContent = fmt(v.currentTime) + ' / ' + fmt(v.duration || 0); };
+    v.addEventListener('loadedmetadata', upd); v.addEventListener('timeupdate', upd);
+  });
+  if (near || mine || instant) feed.scrollTo({top: feed.scrollHeight, behavior: instant ? 'auto' : 'smooth'});
+}
+
+/* ---------- Audio asli ---------- */
+function paintVoice(vn) {
+  const a = vn._a, d = +vn.dataset.dur, t = a ? Math.min(a.currentTime, d) : 0, playing = a && !a.paused;
+  const spans = vn.querySelectorAll('.wv span'), on = Math.round(t / d * spans.length);
+  spans.forEach((s, i) => s.classList.toggle('on', i < on));
+  vn.querySelector('.vt').textContent = fmt(playing ? d - t : d);
+  vn.querySelector('.vbtn').innerHTML = playing ? I.pause : I.play;
+}
+function getAudio(vn) {
+  if (!vn._a) {
+    const a = vn._a = new Audio(vn.dataset.src);
+    ['timeupdate', 'play', 'pause'].forEach(ev => a.addEventListener(ev, () => paintVoice(vn)));
+    a.addEventListener('ended', () => { a.currentTime = 0; paintVoice(vn); });
+  }
+  return vn._a;
+}
+feed.addEventListener('click', e => {
+  const vn = e.target.closest('.vn');
+  if (vn && e.target.closest('.wv')) {
+    const r = e.target.closest('.wv').getBoundingClientRect(), a = getAudio(vn);
+    a.currentTime = Math.max(0, (e.clientX - r.left) / r.width * +vn.dataset.dur); paintVoice(vn); return;
+  }
+  if (vn && e.target.closest('.vbtn')) {
+    const a = getAudio(vn);
+    document.querySelectorAll('.vn').forEach(o => o !== vn && o._a && !o._a.paused && o._a.pause());
+    a.paused ? a.play().catch(() => toast('Audio tidak bisa diputar di browser ini')) : a.pause(); return;
+  }
+  const vid = e.target.closest('.vid');
+  if (vid) { const v = vid.querySelector('video'); v.paused ? v.play() : v.pause(); return; }
+  const img = e.target.closest('.zoomwrap img');
+  if (img) { $('#lbimg').src = img.src; $('#lb').classList.replace('hidden', 'flex'); }
+});
+$('#lb').onclick = () => $('#lb').classList.replace('flex', 'hidden');
+document.addEventListener('keydown', e => e.key === 'Escape' && $('#lb').classList.replace('flex', 'hidden'));
+
+/* ---------- Kirim pesan ---------- */
+async function upload(file, ext, folder) {
+  const path = `${me.id}/${folder || 'm'}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+  const {error} = await sb.storage.from('media').upload(path, file, {contentType: file.type || undefined});
+  if (error) throw error;
+  return sb.storage.from('media').getPublicUrl(path).data.publicUrl;
+}
+async function post(row) {
+  const {data, error} = await sb.from('messages').insert({user_id: me.id, ...row}).select().single();
+  if (error) { toast('Gagal kirim: ' + error.message); return false; }
+  addMsg(data); return true;
+}
+let pend = null, busy = false;
+const pendBox = $('#pend');
+$('#attach').onclick = () => $('#file').click();
+$('#file').onchange = e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  if (f.size > 20e6) return toast('Ukuran file maksimal 20 MB');
+  const isVid = f.type.startsWith('video/');
+  if (!isVid && !f.type.startsWith('image/')) return toast('Pilih foto atau video');
+  pend = {file: f, kind: isVid ? 'video' : 'image', url: URL.createObjectURL(f)};
+  const thumb = isVid ? `<div class="w-12 h-12 grid place-items-center bg-ink text-white border-[3px] border-ink">${I.play}</div>`
+    : `<img src="${pend.url}" alt="" class="w-12 h-12 object-cover border-[3px] border-ink">`;
+  pendBox.innerHTML = `${thumb}<span class="font-bold text-sm truncate">${esc(f.name)}</span><button type="button" id="unpend" class="btn ml-auto bg-paper text-ink px-3 py-1 text-sm">Hapus</button>`;
+  show(pendBox, true, 'flex'); $('#unpend').onclick = clearPend;
+};
+function clearPend() { pend = null; show(pendBox, false, 'flex'); }
+$('#form').onsubmit = async e => {
+  e.preventDefault();
+  const text = $('#text').value.trim();
+  if ((!text && !pend) || busy) return;
+  busy = true; $('#send').disabled = true;
+  try {
+    const row = {kind: 'text', content: text || null};
+    if (pend) {
+      toast('Mengunggah...');
+      row.kind = pend.kind;
+      row.media_url = await upload(pend.file, pend.file.name.split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin');
+    }
+    if (await post(row)) { $('#text').value = ''; clearPend(); }
+  } catch (x) { toast('Gagal mengunggah: ' + x.message); }
+  busy = false; $('#send').disabled = false;
+};
+
+/* ---------- Rekam voice note (mikrofon asli) ---------- */
+let rec = null; const micBtn = $('#mic');
+function micUI(on) {
+  show($('#recbar'), on, 'flex');
+  micBtn.classList.toggle('bg-crimson', on); micBtn.classList.toggle('text-white', on);
+  micBtn.classList.toggle('bg-paper', !on); micBtn.classList.toggle('text-ink', !on);
+  micBtn.classList.toggle('rec', on);
+}
+async function startRec() {
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({audio: true}); }
+  catch { return toast('Izin mikrofon ditolak. Aktifkan izin mikrofon di browser.'); }
+  const mt = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
+  const mr = new MediaRecorder(stream, mt ? {mimeType: mt} : {}), chunks = [];
+  const s = rec = {mr, t: 0, send: true, iv: setInterval(() => { s.t += .2; $('#rect').textContent = fmt(s.t); }, 200)};
+  mr.ondataavailable = ev => ev.data.size && chunks.push(ev.data);
+  mr.onstop = async () => {
+    clearInterval(s.iv); stream.getTracks().forEach(t => t.stop()); rec = null; micUI(false);
+    const dur = Math.round(s.t);
+    if (!s.send) return;
+    if (dur < 1) return toast('Rekaman terlalu singkat');
+    const blob = new Blob(chunks, {type: mr.mimeType || 'audio/webm'});
+    try {
+      toast('Mengirim voice note...');
+      const url = await upload(blob, blob.type.includes('mp4') ? 'm4a' : 'webm', 'vn');
+      await post({kind: 'voice', media_url: url, duration: dur});
+    } catch (x) { toast('Gagal mengirim: ' + x.message); }
+  };
+  $('#rect').textContent = '0:00'; micUI(true); mr.start();
+}
+micBtn.onclick = () => rec ? rec.mr.stop() : startRec();
+$('#reccancel').onclick = () => { if (rec) { rec.send = false; rec.mr.stop(); } };
+
+/* ---------- Tema ---------- */
+$('#theme').onclick = () => {
+  const r = document.documentElement;
+  const dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme:dark)').matches;
+  r.dataset.theme = dark ? 'light' : 'dark';
+};
+
+/* ---------- Mulai aplikasi ---------- */
+function setConn(t) { $('#conn').textContent = t; }
+async function start(user) {
+  if (started) return; started = true; me = user;
+  await ensureProfile(user);
+  refreshProfile(user.id);
+  show($('#auth'), false);
+  const {data} = await sb.from('messages').select('*').order('created_at', {ascending: false}).limit(100);
+  const list = (data || []).reverse();
+  await loadProfiles(list.map(m => m.user_id));
+  if (!list.length) $('#empty').classList.remove('hidden');
+  list.forEach(m => addMsg(m, true));
+  feed.scrollTop = feed.scrollHeight;
+
+  const chan = sb.channel('global-chat', {config: {presence: {key: user.id}}})
+    .on('postgres_changes', {event: 'INSERT', schema: 'public', table: 'messages'}, async p => {
+      if (seen.has(p.new.id)) return;
+      await loadProfiles([p.new.user_id]); addMsg(p.new);
+    })
+    .on('postgres_changes', {event: 'UPDATE', schema: 'public', table: 'profiles'}, p => { profiles[p.new.id] = p.new; refreshProfile(p.new.id); })
+    .on('presence', {event: 'sync'}, () => { $('#online').textContent = Object.keys(chan.presenceState()).length.toLocaleString('id-ID'); })
+    .subscribe(async st => {
+      if (st === 'SUBSCRIBED') { await chan.track({at: Date.now()}); setConn('TERHUBUNG'); }
+      else if (['CLOSED', 'CHANNEL_ERROR', 'TIMED_OUT'].includes(st)) setConn('TERPUTUS');
+    });
+}
+if (!configured) {
+  $('#authForm').classList.add('hidden'); $('#setupWarn').classList.remove('hidden');
+} else {
+  sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  sb.auth.getSession().then(({data}) => { if (data.session) start(data.session.user); });
+  sb.auth.onAuthStateChange((ev, s) => {
+    if (ev === 'SIGNED_IN' && s && !started) start(s.user);
+    if (ev === 'SIGNED_OUT') location.reload();
+  });
+}
+</script>
+</body>
+</html>
